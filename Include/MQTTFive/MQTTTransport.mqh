@@ -119,7 +119,7 @@ public:
      {
       if(m_socket <= 0)
          return false;
-      return SocketIsReadable(m_socket);
+      return SocketIsReadable(m_socket) != 0;
      }
 
    int               GetSocket()

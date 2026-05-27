@@ -122,7 +122,7 @@ public:
       buf.WriteU16(packet_id);
       buf.WriteByte(0x00);
       buf.WriteString(params.topic_filter);
-      buf.WriteByte(params.qos & 0x03);
+      buf.WriteByte((uchar)(params.qos & 0x03));
 
       BuildPacket(MQTT_PKT_SUBSCRIBE, buf, out);
      }
