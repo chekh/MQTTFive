@@ -31,11 +31,83 @@ TCP and TLS via native MQL5 Socket API.
 
 ## Installation
 
-1. Copy `Include/MQTTFive/` to your MT5 `MQL5/Include/` directory
-2. Optionally copy `Scripts/MQTTFive/` to `MQL5/Scripts/` for test scripts
-3. Compile your EA or script in MetaEditor
+### Option 1: Copy files manually
+
+1. Find your MT5 data directory: open MT5 → File → Open Data Folder
+2. Copy `Include/MQTTFive/` folder to `MQL5/Include/MQTTFive/`
+3. Result: `MQL5/Include/MQTTFive/MQTTClient.mqh`, `MQTTCodec.mqh`, etc.
+4. In MetaEditor, your code can now use `#include <MQTTFive/MQTTClient.mqh>`
+
+### Option 2: Clone into Include directory
+
+```bash
+cd <MT5_DATA>/MQL5/Include/
+git clone https://github.com/chekh/MQTTFive.git MQTTFive
+```
+
+### Option 3: Symlink (for development)
+
+```bash
+cd <MT5_DATA>/MQL5/Include/
+ln -s /path/to/MQTTFive/Include/MQTTFive MQTTFive
+```
+
+### Test scripts (optional)
+
+Copy `Scripts/MQTTFive/` to `MQL5/Scripts/MQTTFive/`. They appear in
+MT5 Navigator under Scripts → MQTTFive.
+
+### Verify installation
+
+Create a test script in MetaEditor:
+
+```cpp
+#property script_show_inputs
+#include <MQTTFive/MQTTClient.mqh>
+
+void OnStart()
+  {
+   MQTTClient client;
+   MQTTConnectParams params;
+   params.Init();
+   params.client_id = "install_test";
+   if(client.Connect("127.0.0.1", 1883, params))
+      Print("OK: connected");
+   else
+      Print("FAIL: ", client.GetLastError());
+   client.Disconnect();
+  }
+```
+
+Compile and run. You should see `OK: connected` if Mosquitto is running.
 
 ## Quick Start
+
+### Minimal publisher
+
+```cpp
+#include <MQTTFive/MQTTClient.mqh>
+
+void OnStart()
+  {
+   MQTTClient client;
+
+   MQTTConnectParams params;
+   params.Init();
+   params.client_id = "my_publisher";
+
+   if(client.Connect("127.0.0.1", 1883, params))
+     {
+      client.Publish("test/hello", "world", 0);
+      Print("Published");
+      client.Disconnect();
+     }
+   else
+      Print("Error: ", client.GetLastError());
+  }
+```
+
+### Subscriber with callback
 
 ```cpp
 #include <MQTTFive/MQTTClient.mqh>
@@ -55,7 +127,7 @@ void OnStart()
 
    MQTTConnectParams params;
    params.Init();
-   params.client_id = "mql5_client";
+   params.client_id = "mql5_subscriber";
    params.keep_alive = 60;
    params.clean_start = true;
 
@@ -65,9 +137,8 @@ void OnStart()
 
       while(!IsStopped())
         {
-         client.Publish("sensors/temp", "22.5", 0);
          client.Loop();
-         Sleep(1000);
+         Sleep(100);
         }
 
       client.Disconnect();
@@ -76,6 +147,129 @@ void OnStart()
    delete client;
   }
 ```
+
+### Using in an Expert Advisor (EA)
+
+MQTTFive works in EAs the same way as scripts. Use `OnTick()` or `OnTimer()`
+to call `Loop()` regularly:
+
+```cpp
+#include <MQTTFive/MQTTClient.mqh>
+
+MQTTClient *mqtt;
+
+void OnMessage(string &topic, uchar &payload[], uint payload_len)
+  {
+   if(topic == "trade/signal")
+     {
+      string signal = CharArrayToString(payload, 0, (int)payload_len, CP_UTF8);
+      Print("Signal: ", signal);
+     }
+  }
+
+int OnInit()
+  {
+   mqtt = new MQTTClient();
+   mqtt.SetCallback(OnMessage);
+
+   MQTTConnectParams params;
+   params.Init();
+   params.client_id = "ea_client";
+   params.keep_alive = 60;
+
+   if(!mqtt.Connect("127.0.0.1", 1883, params))
+     {
+      Print("MQTT connect failed: ", mqtt.GetLastError());
+      return INIT_FAILED;
+     }
+
+   mqtt.Subscribe("trade/#", 1);
+   EventSetTimer(1);
+   return INIT_SUCCEEDED;
+  }
+
+void OnTimer()
+  {
+   mqtt.Loop();
+  }
+
+void OnTick()
+  {
+   mqtt.Loop();
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   string payload = DoubleToString(price, _Digits);
+   mqtt.Publish("market/" + _Symbol, payload, 0);
+  }
+
+void OnDeinit(const int reason)
+  {
+   if(mqtt != NULL)
+     {
+      mqtt.Disconnect();
+      delete mqtt;
+      mqtt = NULL;
+     }
+   EventKillTimer();
+  }
+```
+
+### Important: Stack vs Heap allocation
+
+MQL5 classes can be allocated on stack or heap:
+
+```cpp
+// Stack allocation (destroyed when variable goes out of scope)
+MQTTClient client;
+client.Connect(host, port, params);
+
+// Heap allocation (destroyed by delete)
+MQTTClient *client = new MQTTClient();
+client.Connect(host, port, params);
+delete client;
+```
+
+Both work. Use heap (`new`) when the client needs to live across function calls
+(e.g., global in an EA). Use stack for simple scripts.
+
+### Binary payloads
+
+Use `uchar[]` overload for binary data:
+
+```cpp
+uchar data[];
+ArrayResize(data, 4);
+data[0] = 0x01;
+data[1] = 0x02;
+data[2] = 0x03;
+data[3] = 0x04;
+client.Publish("binary/topic", data, 4, 0);
+```
+
+On the receiving end, payload comes as `uchar[]` — decode as needed:
+
+```cpp
+void OnMessage(string &topic, uchar &payload[], uint payload_len)
+  {
+   // As string (UTF-8):
+   string text = CharArrayToString(payload, 0, (int)payload_len, CP_UTF8);
+
+   // As raw bytes:
+   for(int i = 0; i < (int)payload_len; i++)
+      PrintFormat("payload[%d] = 0x%02X", i, payload[i]);
+  }
+```
+
+### TLS (SSL/TLS) connections
+
+Pass `true` as the 4th argument to `Connect()`:
+
+```cpp
+params.client_id = "secure_client";
+client.Connect("broker.example.com", 8883, params, true);
+```
+
+Uses MQL5's built-in `SocketTlsHandshake`. The broker must have a valid
+certificate (or be added to the trusted certificates list).
 
 ## API Reference
 
@@ -270,6 +464,84 @@ Scripts/MQTTFive/
 docs/
   mqtt5_logo.png      Logo
   TEST_PLAN.md        Test scenarios documentation
+```
+
+## Architecture
+
+The library is organized in four layers:
+
+```
+MQTTClient.mqh        ← User-facing API (publish, subscribe, loop)
+    |
+MQTTCodec.mqh         ← Packet encode/decode (MQTT wire format)
+    |
+MQTTBuffer.mqh        ← Binary buffer with position tracking
+    |
+MQTTTransport.mqh     ← TCP/TLS via MQL5 Socket API
+```
+
+### MQTTTypes.mqh
+
+All shared types and constants. You only need this file if you access
+`MQTTConnectParams`, `MQTTConnackInfo`, `MQTTSubscribeParams`, or
+`MQTTSubscriptionOptions` directly. Included automatically by `MQTTClient.mqh`.
+
+Key types:
+- `MQTTConnectParams` — connection parameters (client ID, credentials, will, properties)
+- `MQTTConnackInfo` — broker response (capabilities, limits)
+- `MQTTSubscribeParams` — subscription with options
+- `MQTTSubscriptionOptions` — QoS, no_local, retain_as_published, retain_handling
+- `MQTTPublishMessage` — incoming message (topic, payload, QoS, retain, dup)
+- `MQTTWillProperties` — will delay, payload format, message expiry, content type
+
+### MQTTBuffer.mqh
+
+Internal byte buffer with separate read/write positions. Used by codec for
+encoding packets to bytes and decoding bytes back to structured data.
+
+Not used directly by application code.
+
+### MQTTTransport.mqh
+
+Thin wrapper over MQL5 Socket API (`SocketCreate`, `SocketConnect`,
+`SocketSend`, `SocketRead`, `SocketTlsHandshake`). Handles TCP and TLS.
+
+Not used directly by application code.
+
+### MQTTCodec.mqh
+
+Static methods for encoding and decoding all MQTT packet types. Translates
+between structured data (params, message structs) and wire format bytes.
+
+Not used directly by application code — called internally by `MQTTClient`.
+
+### MQTTClient.mqh
+
+The only class you need. Provides:
+
+- **Connect/Disconnect** — manages connection lifecycle
+- **Publish** — sends messages (string or binary payload)
+- **Subscribe/Unsubscribe** — manages topic subscriptions
+- **Loop** — must be called regularly to:
+  - Process incoming packets (PUBLISH, PUBACK, PUBREC, PUBREL, etc.)
+  - Send keepalive PINGREQ when idle
+  - Retry unacknowledged QoS 1/2 messages
+- **GetConnackInfo** — broker capabilities after connect
+- **SetCallback** — function called when a subscribed message arrives
+
+### Event loop pattern
+
+MQTTFive is single-threaded (MQL5 limitation). The `Loop()` method must be
+called regularly. It processes at most **one** incoming packet per call.
+For QoS 1 and 2, call `Loop()` frequently (every 50-100ms) to ensure
+timely ACK processing.
+
+```
+while(!IsStopped())
+  {
+   mqtt.Loop();     // process ONE incoming packet + keepalive + retry
+   Sleep(100);      // yield to MT5
+  }
 ```
 
 ## Limitations
