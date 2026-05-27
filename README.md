@@ -1,5 +1,8 @@
-MQTTFive — MQTT 5.0 Client Library for MQL5
-=============================================
+<div align="center">
+  <img src="mqtt5_logo.png" alt="MQTTFive" width="200"/>
+</div>
+
+# MQTTFive — MQTT 5.0 Client Library for MQL5
 
 Pure MQL5 implementation. Zero DLL dependencies. TCP + TLS via native MQL5 Socket API.
 
