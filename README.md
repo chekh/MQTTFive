@@ -72,6 +72,14 @@ void OnStart()
 - MetaTrader 5 (build 3390+)
 - MQTT 5.0 broker (Mosquitto >= 5.0, EMQX, HiveMQ)
 
+## Examples
+
+| Example | Description |
+|---------|-------------|
+| [PricePublisher.mq5](examples/PricePublisher.mq5) | Publish bid/ask prices as JSON |
+| [TradeSignalReceiver.mq5](examples/TradeSignalReceiver.mq5) | Subscribe to trade signals |
+| [StatusMonitor.mq5](examples/StatusMonitor.mq5) | EA: publish account status and open positions |
+
 ## License
 
 MIT
