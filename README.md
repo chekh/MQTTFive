@@ -1,5 +1,10 @@
 <div align="center">
   <img src="docs/mqtt5_logo.png" alt="MQTTFive" width="200"/>
+
+  [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+  [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/chekh/MQTTFive/releases/tag/v1.0.0)
+  [![MQL5](https://img.shields.io/badge/platform-MQL5-orange.svg)](https://www.mql5.com)
+  [![MQTT](https://img.shields.io/badge/protocol-MQTT%205.0-660066.svg)](https://mqtt.org/mqtt-specification/)
 </div>
 
 # MQTTFive — MQTT 5.0 Client for MQL5
