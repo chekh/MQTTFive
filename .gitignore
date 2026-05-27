@@ -24,3 +24,4 @@ Thumbs.db
 # Internal design docs (not for users)
 docs/2026-*
 docs/SPEC.md
+docs/TEST_PLAN.md
