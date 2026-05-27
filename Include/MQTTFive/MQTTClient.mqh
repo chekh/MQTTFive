@@ -28,6 +28,7 @@ private:
    int               m_last_error;
    string            m_last_error_msg;
    bool              m_enableLog;
+   MQTTConnackInfo   m_connack_info;
 
    ushort            NextPacketId()
      {
@@ -122,18 +123,29 @@ private:
            }
          m_read_buf.AttachRead(body, remaining_len);
         }
-
-      uchar reason_code = 0xFF;
-      bool session_present = false;
-      MQTTCodec::DecodeConnack(m_read_buf, reason_code, session_present);
-
-      if(reason_code != MQTT_CONNACK_SUCCESS)
+      else
         {
-         SetError(reason_code,
-                  StringFormat("CONNACK rejected, reason code 0x%02X", reason_code));
+         m_read_buf.Reset();
+        }
+
+      m_connack_info.Init();
+      if(!MQTTCodec::DecodeConnackFull(m_read_buf, m_connack_info))
+        {
+         SetError(-1, "Failed to decode CONNACK");
          m_transport.Disconnect();
          return false;
         }
+
+      if(m_connack_info.reason_code != MQTT_CONNACK_SUCCESS)
+        {
+         SetError(m_connack_info.reason_code,
+                  StringFormat("CONNACK rejected, reason code 0x%02X", m_connack_info.reason_code));
+         m_transport.Disconnect();
+         return false;
+        }
+
+      if(m_connack_info.has_server_keep_alive)
+         m_keep_alive = m_connack_info.server_keep_alive;
 
       m_last_in = TimeLocal();
       m_last_out = TimeLocal();
@@ -202,6 +214,12 @@ private:
          uchar reason;
          MQTTCodec::DecodePuback(m_read_buf, pkt_id, reason);
         }
+      else if(pkt_type == MQTT_PKT_UNSUBACK)
+        {
+         ushort pkt_id;
+         uchar reason;
+         MQTTCodec::DecodeUnsuback(m_read_buf, pkt_id, reason);
+        }
       else if(MQTTCodec::IsDisconnect(first_byte))
         {
          SetError(-1, "Server sent DISCONNECT");
@@ -213,13 +231,13 @@ private:
      }
 
 public:
-                     MQTTClient() : m_state(MQTT_STATE_DISCONNECTED),
-                      m_next_pkt_id(0), m_last_out(0), m_last_in(0),
-                      m_keep_alive(60), m_ping_outstanding(false),
-                      m_callback(NULL), m_last_error(0), m_last_error_msg(""),
-                      m_enableLog(false)
-     {
-     }
+                      MQTTClient() : m_state(MQTT_STATE_DISCONNECTED),
+                       m_next_pkt_id(0), m_last_out(0), m_last_in(0),
+                       m_keep_alive(60), m_ping_outstanding(false),
+                       m_callback(NULL), m_last_error(0), m_last_error_msg(""),
+                       m_enableLog(false), m_connack_info()
+      {
+      }
 
                      ~MQTTClient()
      {
@@ -236,9 +254,14 @@ public:
       m_keep_alive = seconds;
      }
 
-   void              SetLog(bool enable)
+    void              SetLog(bool enable)
+      {
+       m_enableLog = enable;
+      }
+
+   MQTTConnackInfo    GetConnackInfo()
      {
-      m_enableLog = enable;
+      return m_connack_info;
      }
 
    bool              Connect(string host, ushort port, MQTTConnectParams &params,
@@ -268,11 +291,23 @@ public:
       return true;
      }
 
-   bool              Disconnect()
+    bool              Disconnect()
+      {
+       if(m_state == MQTT_STATE_CONNECTED)
+         {
+          MQTTCodec::EncodeDisconnect(m_write_buf);
+          SendBuffer();
+         }
+       m_transport.Disconnect();
+       m_state = MQTT_STATE_DISCONNECTED;
+       return true;
+      }
+
+   bool              Disconnect(uchar reason_code, uint session_expiry = 0)
      {
       if(m_state == MQTT_STATE_CONNECTED)
         {
-         MQTTCodec::EncodeDisconnect(m_write_buf);
+         MQTTCodec::EncodeDisconnectWithReason(reason_code, session_expiry, m_write_buf);
          SendBuffer();
         }
       m_transport.Disconnect();
@@ -306,16 +341,28 @@ public:
       return SendBuffer();
      }
 
-   bool              Subscribe(string topic, uchar qos = 0)
+    bool              Subscribe(string topic, uchar qos = 0)
+      {
+       if(m_state != MQTT_STATE_CONNECTED)
+         {
+          SetError(-1, "Not connected");
+          return false;
+         }
+       MQTTSubscribeParams params;
+       params.Init();
+       params.topic_filter = topic;
+       params.options.maximum_qos = qos;
+       MQTTCodec::EncodeSubscribe(NextPacketId(), params, m_write_buf);
+       return SendBuffer();
+      }
+
+   bool              Subscribe(MQTTSubscribeParams &params)
      {
       if(m_state != MQTT_STATE_CONNECTED)
         {
          SetError(-1, "Not connected");
          return false;
         }
-      MQTTSubscribeParams params;
-      params.topic_filter = topic;
-      params.qos = qos;
       MQTTCodec::EncodeSubscribe(NextPacketId(), params, m_write_buf);
       return SendBuffer();
      }

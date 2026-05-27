@@ -67,6 +67,110 @@ enum ENUM_MQTT_SUBACK
    MQTT_SUBACK_NOT_AUTHORIZED       = 0x87,
    MQTT_SUBACK_TOPIC_FILTER_INVALID = 0x8F,
    MQTT_SUBACK_PACKET_ID_IN_USE     = 0x91
+   };
+
+//+------------------------------------------------------------------+
+//| Property identifiers (MQTT 5.0 Section 2.2.2)                     |
+//+------------------------------------------------------------------+
+enum ENUM_MQTT_PROPERTY_ID
+  {
+   MQTT_PROP_SESSION_EXPIRY_INTERVAL  = 0x11,
+   MQTT_PROP_RECEIVE_MAXIMUM          = 0x21,
+   MQTT_PROP_MAXIMUM_QOS              = 0x24,
+   MQTT_PROP_RETAIN_AVAILABLE         = 0x25,
+   MQTT_PROP_MAXIMUM_PACKET_SIZE      = 0x27,
+   MQTT_PROP_ASSIGNED_CLIENT_ID       = 0x12,
+   MQTT_PROP_TOPIC_ALIAS_MAXIMUM      = 0x22,
+   MQTT_PROP_TOPIC_ALIAS              = 0x23,
+   MQTT_PROP_SERVER_KEEP_ALIVE        = 0x13,
+   MQTT_PROP_WILL_DELAY_INTERVAL      = 0x18,
+   MQTT_PROP_PAYLOAD_FORMAT_INDICATOR = 0x01,
+   MQTT_PROP_MESSAGE_EXPIRY_INTERVAL  = 0x02,
+   MQTT_PROP_CONTENT_TYPE             = 0x03,
+   MQTT_PROP_USER_PROPERTY            = 0x26,
+   MQTT_PROP_REASON_STRING            = 0x1F
+  };
+
+//+------------------------------------------------------------------+
+//| CONNACK parsed info                                               |
+//+------------------------------------------------------------------+
+struct MQTTConnackInfo
+  {
+   bool              session_present;
+   uchar             reason_code;
+   uint              session_expiry_interval;
+   ushort            receive_maximum;
+   uchar             maximum_qos;
+   bool              retain_available;
+   uint              maximum_packet_size;
+   string            assigned_client_id;
+   ushort            topic_alias_maximum;
+   ushort            server_keep_alive;
+   bool              has_session_expiry;
+   bool              has_receive_maximum;
+   bool              has_maximum_qos;
+   bool              has_retain_available;
+   bool              has_maximum_packet_size;
+   bool              has_assigned_client_id;
+   bool              has_topic_alias_maximum;
+   bool              has_server_keep_alive;
+
+   void              Init()
+     {
+      session_present = false; reason_code = 0xFF;
+      session_expiry_interval = 0; receive_maximum = 65535;
+      maximum_qos = 2; retain_available = true;
+      maximum_packet_size = 0; assigned_client_id = "";
+      topic_alias_maximum = 0; server_keep_alive = 0;
+      has_session_expiry = false; has_receive_maximum = false;
+      has_maximum_qos = false; has_retain_available = false;
+      has_maximum_packet_size = false; has_assigned_client_id = false;
+      has_topic_alias_maximum = false; has_server_keep_alive = false;
+     }
+  };
+
+//+------------------------------------------------------------------+
+//| Will properties                                                   |
+//+------------------------------------------------------------------+
+struct MQTTWillProperties
+  {
+   uint              will_delay_interval;
+   uchar             payload_format_indicator;
+   uint              message_expiry_interval;
+   string            content_type;
+
+   void              Init()
+     {
+      will_delay_interval = 0;
+      payload_format_indicator = 0;
+      message_expiry_interval = 0;
+      content_type = "";
+     }
+  };
+
+//+------------------------------------------------------------------+
+//| Subscription options (MQTT 5.0 Section 3.8.3.1)                   |
+//+------------------------------------------------------------------+
+struct MQTTSubscriptionOptions
+  {
+   uchar             maximum_qos;
+   bool              no_local;
+   bool              retain_as_published;
+   uchar             retain_handling;
+
+   void              Init()
+     {
+      maximum_qos = 0; no_local = false;
+      retain_as_published = false; retain_handling = 0;
+     }
+
+   uchar             ToByte() const
+     {
+      return (uchar)((maximum_qos & 0x03)
+           | ((no_local ? 1 : 0) << 2)
+           | ((retain_as_published ? 1 : 0) << 3)
+           | ((retain_handling & 0x03) << 4));
+     }
   };
 
 //+------------------------------------------------------------------+
@@ -83,6 +187,11 @@ struct MQTTConnectParams
    string            will_payload;
    uchar             will_qos;
    bool              will_retain;
+   uint              session_expiry_interval;
+   ushort            receive_maximum;
+   uint              maximum_packet_size;
+   ushort            topic_alias_maximum;
+   MQTTWillProperties will_props;
 
    void              Init()
      {
@@ -90,6 +199,9 @@ struct MQTTConnectParams
       keep_alive = 60; clean_start = true;
       will_topic = ""; will_payload = "";
       will_qos = 0; will_retain = false;
+      session_expiry_interval = 0; receive_maximum = 65535;
+      maximum_packet_size = 0; topic_alias_maximum = 0;
+      will_props.Init();
      }
   };
 
@@ -112,8 +224,14 @@ struct MQTTPublishMessage
 //+------------------------------------------------------------------+
 struct MQTTSubscribeParams
   {
-   string            topic_filter;
-   uchar             qos;
+   string               topic_filter;
+   MQTTSubscriptionOptions options;
+
+   void              Init()
+     {
+      topic_filter = "";
+      options.Init();
+     }
   };
 
 //+------------------------------------------------------------------+
