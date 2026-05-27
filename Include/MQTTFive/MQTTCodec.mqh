@@ -122,8 +122,9 @@ private:
             case MQTT_PROP_USER_PROPERTY:
                { string k, v; buf.ReadString(k); buf.ReadString(v); }
                break;
-            default:
-               break;
+             default:
+                buf.SkipBytes(end_pos - buf.ReadPosition());
+                return;
            }
         }
       if(buf.ReadPosition() < end_pos)
@@ -267,7 +268,7 @@ public:
       buf.WriteString(params.topic_filter);
       buf.WriteByte(params.options.ToByte());
 
-      BuildPacket(MQTT_PKT_SUBSCRIBE, buf, out);
+       BuildPacket(MQTT_PKT_SUBSCRIBE | 0x02, buf, out);
      }
 
    static void       EncodeUnsubscribe(ushort packet_id, string &topic,
@@ -278,7 +279,7 @@ public:
       buf.WriteByte(0x00);
       buf.WriteString(topic);
 
-      BuildPacket(MQTT_PKT_UNSUBSCRIBE, buf, out);
+       BuildPacket(MQTT_PKT_UNSUBSCRIBE | 0x02, buf, out);
      }
 
    static void       EncodePuback(ushort packet_id, MQTTBuffer &out)
@@ -298,12 +299,12 @@ public:
      }
 
    static void       EncodePubrel(ushort packet_id, MQTTBuffer &out)
-     {
-      out.Reset();
-      out.WriteByte(MQTT_PKT_PUBREL);
-      out.WriteByte(0x02);
-      out.WriteU16(packet_id);
-     }
+      {
+       out.Reset();
+       out.WriteByte(MQTT_PKT_PUBREL | 0x02);
+       out.WriteByte(0x02);
+       out.WriteU16(packet_id);
+      }
 
    static void       EncodePubcomp(ushort packet_id, MQTTBuffer &out)
      {

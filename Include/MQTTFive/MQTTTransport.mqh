@@ -36,10 +36,10 @@ public:
       if(m_socket > 0 && SocketIsConnected(m_socket))
          return true;
 
-      m_host = host;
-      m_port = port;
-      m_useTLS = useTLS;
-      m_timeout = timeout_sec;
+       m_host = host;
+       m_port = port;
+       m_useTLS = useTLS;
+       m_timeout = timeout_sec * 1000;
 
       m_socket = SocketCreate();
       if(m_socket == INVALID_HANDLE)

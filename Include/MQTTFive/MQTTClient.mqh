@@ -459,17 +459,23 @@ public:
        return true;
       }
 
-   bool              Disconnect(uchar reason_code, uint session_expiry = 0)
-     {
-      if(m_state == MQTT_STATE_CONNECTED)
-        {
-         MQTTCodec::EncodeDisconnectWithReason(reason_code, session_expiry, m_write_buf);
-         SendBuffer();
-        }
-      m_transport.Disconnect();
-      m_state = MQTT_STATE_DISCONNECTED;
-      return true;
-     }
+    bool              Disconnect(uchar reason_code, uint session_expiry = 0)
+      {
+       if(m_state == MQTT_STATE_CONNECTED)
+         {
+          MQTTCodec::EncodeDisconnectWithReason(reason_code, session_expiry, m_write_buf);
+          SendBuffer();
+         }
+       m_transport.Disconnect();
+       m_state = MQTT_STATE_DISCONNECTED;
+       return true;
+      }
+
+    void              ForceDisconnect()
+      {
+       m_transport.Disconnect();
+       m_state = MQTT_STATE_DISCONNECTED;
+      }
 
    bool              Publish(string topic, string payload, uchar qos = 0,
                               bool retain = false)
