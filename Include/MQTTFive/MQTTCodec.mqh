@@ -199,13 +199,24 @@ public:
 
    static void       EncodePublishString(string topic, string payload,
                                           uchar qos, bool retain, ushort packet_id,
-                                          MQTTBuffer &out)
+                                          ushort topic_alias, MQTTBuffer &out)
      {
       MQTTBuffer buf;
-      buf.WriteString(topic);
+      if(topic_alias > 0 && topic == "")
+         buf.WriteU16(0);
+      else
+         buf.WriteString(topic);
       if(qos > 0)
          buf.WriteU16(packet_id);
-      buf.WriteByte(0x00);
+
+      MQTTBuffer props;
+      if(topic_alias > 0)
+         EncodePropertyU16(props, MQTT_PROP_TOPIC_ALIAS, topic_alias);
+      uchar propsData[];
+      props.GetData(propsData);
+      buf.WriteVarInt((uint)ArraySize(propsData));
+      buf.WriteRawBytes(propsData, (uint)ArraySize(propsData));
+
       uchar temp[];
       int byte_len = StringToCharArray(payload, temp, 0, WHOLE_ARRAY, CP_UTF8);
       if(byte_len > 0) byte_len--;
@@ -220,13 +231,24 @@ public:
 
    static void       EncodePublish(string topic, uchar &payload[], uint payload_len,
                                     uchar qos, bool retain, ushort packet_id,
-                                    MQTTBuffer &out)
+                                    ushort topic_alias, MQTTBuffer &out)
      {
       MQTTBuffer buf;
-      buf.WriteString(topic);
+      if(topic_alias > 0 && topic == "")
+         buf.WriteU16(0);
+      else
+         buf.WriteString(topic);
       if(qos > 0)
          buf.WriteU16(packet_id);
-      buf.WriteByte(0x00);
+
+      MQTTBuffer props;
+      if(topic_alias > 0)
+         EncodePropertyU16(props, MQTT_PROP_TOPIC_ALIAS, topic_alias);
+      uchar propsData[];
+      props.GetData(propsData);
+      buf.WriteVarInt((uint)ArraySize(propsData));
+      buf.WriteRawBytes(propsData, (uint)ArraySize(propsData));
+
       buf.WriteRawBytes(payload, payload_len);
 
       uchar hdr = MQTT_PKT_PUBLISH;
