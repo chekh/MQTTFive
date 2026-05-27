@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/mqtt5_logo.png" alt="MQTTFive" width="200"/>
+  <img src="mqtt5_logo.png" alt="MQTTFive" width="200"/>
 </div>
 
 # MQTTFive — MQTT 5.0 Client Library for MQL5
