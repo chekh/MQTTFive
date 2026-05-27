@@ -5,7 +5,7 @@
 
 #include <MQTTFive/MQTTClient.mqh>
 
-input string InpHost       = "localhost";
+input string InpHost       = "127.0.0.1";
 input int    InpPort       = 1883;
 input string InpUsername   = "";
 input string InpPassword   = "";
@@ -72,32 +72,22 @@ void OnStart()
    Sleep(100);
    clientA.Loop();
 
-   Assert(clientB.Publish("test/t04", "exactly_once", 2), "ClientB publish test/t04 QoS 2");
+    Assert(clientB.Publish("test/t04", "exactly_once", 2), "ClientB publish test/t04 QoS 2");
 
-   for(int i = 0; i < 20 && !g_received_a; i++)
-     {
-      Sleep(50);
-      clientA.Loop();
-     }
-   Assert(g_received_a, "Subscriber received message via QoS 2");
+    for(int i = 0; i < 50 && !g_received_a; i++)
+      {
+       Sleep(50);
+       clientA.Loop();
+       clientB.Loop();
+      }
+    Assert(g_received_a, "Subscriber received message via QoS 2");
 
-   for(int i = 0; i < 20; i++)
-     {
-      Sleep(50);
-      clientB.Loop();
-     }
-
-   for(int i = 0; i < 20; i++)
-     {
-      Sleep(50);
-      clientA.Loop();
-     }
-
-   for(int i = 0; i < 20; i++)
-     {
-      Sleep(50);
-      clientB.Loop();
-     }
+    for(int i = 0; i < 20; i++)
+      {
+       Sleep(50);
+       clientA.Loop();
+       clientB.Loop();
+      }
 
    Assert(g_payload_a == "exactly_once", "Payload == exactly_once");
 

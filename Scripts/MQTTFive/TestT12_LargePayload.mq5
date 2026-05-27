@@ -5,7 +5,7 @@
 
 #include <MQTTFive/MQTTClient.mqh>
 
-input string InpHost       = "localhost";
+input string InpHost       = "127.0.0.1";
 input int    InpPort       = 1883;
 input string InpUsername   = "";
 input string InpPassword   = "";
@@ -88,10 +88,10 @@ void OnStart()
       clientA.Loop();
      }
 
-   Assert(g_received, "Received 1KB message");
-   Assert(g_payload_len == 1024, "1KB payload_len == 1024");
-   Assert(g_rx_payload[0] == 0xAA, "1KB first byte == 0xAA");
-   Assert(g_rx_payload[1023] == 0xAA, "1KB last byte == 0xAA");
+    Assert(g_received, "Received 1KB message");
+    Assert(g_payload_len == 1024, "1KB payload_len == 1024");
+    Assert(g_received && g_rx_payload[0] == 0xAA, "1KB first byte == 0xAA");
+    Assert(g_received && g_rx_payload[1023] == 0xAA, "1KB last byte == 0xAA");
 
    uchar payload10kb[];
    ArrayResize(payload10kb, 10240);
@@ -108,10 +108,10 @@ void OnStart()
       clientA.Loop();
      }
 
-   Assert(g_received, "Received 10KB message");
-   Assert(g_payload_len == 10240, "10KB payload_len == 10240");
-   Assert(g_rx_payload[0] == 0xBB, "10KB first byte == 0xBB");
-   Assert(g_rx_payload[10239] == 0xBB, "10KB last byte == 0xBB");
+    Assert(g_received, "Received 10KB message");
+    Assert(g_payload_len == 10240, "10KB payload_len == 10240");
+    Assert(g_received && g_rx_payload[0] == 0xBB, "10KB first byte == 0xBB");
+    Assert(g_received && g_rx_payload[10239] == 0xBB, "10KB last byte == 0xBB");
 
    clientA.Disconnect();
    clientB.Disconnect();

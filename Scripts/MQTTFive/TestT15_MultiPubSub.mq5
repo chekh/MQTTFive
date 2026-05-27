@@ -5,7 +5,7 @@
 
 #include <MQTTFive/MQTTClient.mqh>
 
-input string InpHost       = "localhost";
+input string InpHost       = "127.0.0.1";
 input int    InpPort       = 1883;
 input string InpUsername   = "";
 input string InpPassword   = "";

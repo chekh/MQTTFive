@@ -5,7 +5,7 @@
 
 #include <MQTTFive/MQTTClient.mqh>
 
-input string InpHost       = "localhost";
+input string InpHost       = "127.0.0.1";
 input int    InpPort       = 1883;
 input string InpUsername   = "";
 input string InpPassword   = "";
@@ -90,16 +90,23 @@ void OnStart()
       clientA.Loop();
      }
 
-   Assert(g_received, "Received binary message");
-   Assert(g_payload_len == 256, "Payload length == 256");
+    Assert(g_received, "Received binary message");
+    Assert(g_payload_len == 256, "Payload length == 256");
 
-   bool all_match = true;
-   for(int i = 0; i < 256 && all_match; i++)
-     {
-      if(g_rx_payload[i] != (uchar)i)
-         all_match = false;
-     }
-   Assert(all_match, "All 256 bytes match (no corruption)");
+    bool all_match = true;
+    if(g_received && g_payload_len == 256)
+      {
+       for(int i = 0; i < 256 && all_match; i++)
+         {
+          if(g_rx_payload[i] != (uchar)i)
+             all_match = false;
+         }
+      }
+    else
+      {
+       all_match = false;
+      }
+    Assert(all_match, "All 256 bytes match (no corruption)");
 
    clientA.Disconnect();
    clientB.Disconnect();

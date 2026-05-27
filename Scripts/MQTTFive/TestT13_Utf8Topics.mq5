@@ -5,7 +5,7 @@
 
 #include <MQTTFive/MQTTClient.mqh>
 
-input string InpHost       = "localhost";
+input string InpHost       = "127.0.0.1";
 input int    InpPort       = 1883;
 input string InpUsername   = "";
 input string InpPassword   = "";
@@ -35,7 +35,7 @@ void Assert(bool condition, string msg)
 void OnMsgA(string &topic, uchar &payload[], uint payload_len)
 {
    g_rx_topic = topic;
-   g_rx_payload = CharArrayToString(payload, 0, (int)payload_len);
+    g_rx_payload = CharArrayToString(payload, 0, (int)payload_len, CP_UTF8);
    g_received = true;
 }
 
