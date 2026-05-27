@@ -267,6 +267,30 @@ public:
       out.WriteU16(packet_id);
      }
 
+   static void       EncodePubrec(ushort packet_id, MQTTBuffer &out)
+     {
+      out.Reset();
+      out.WriteByte(MQTT_PKT_PUBREC);
+      out.WriteByte(0x02);
+      out.WriteU16(packet_id);
+     }
+
+   static void       EncodePubrel(ushort packet_id, MQTTBuffer &out)
+     {
+      out.Reset();
+      out.WriteByte(MQTT_PKT_PUBREL);
+      out.WriteByte(0x02);
+      out.WriteU16(packet_id);
+     }
+
+   static void       EncodePubcomp(ushort packet_id, MQTTBuffer &out)
+     {
+      out.Reset();
+      out.WriteByte(MQTT_PKT_PUBCOMP);
+      out.WriteByte(0x02);
+      out.WriteU16(packet_id);
+     }
+
    static void       EncodePingreq(MQTTBuffer &out)
      {
       out.Reset();
@@ -365,6 +389,39 @@ public:
      {
       if(!buf.ReadU16(packet_id)) return false;
 
+      if(buf.Remaining() >= 1)
+         buf.ReadByte(reason_code);
+      else
+         reason_code = 0x00;
+      return true;
+     }
+
+   static bool       DecodePubrec(MQTTBuffer &buf, ushort &packet_id,
+                                   uchar &reason_code)
+     {
+      if(!buf.ReadU16(packet_id)) return false;
+      if(buf.Remaining() >= 1)
+         buf.ReadByte(reason_code);
+      else
+         reason_code = 0x00;
+      return true;
+     }
+
+   static bool       DecodePubrel(MQTTBuffer &buf, ushort &packet_id,
+                                   uchar &reason_code)
+     {
+      if(!buf.ReadU16(packet_id)) return false;
+      if(buf.Remaining() >= 1)
+         buf.ReadByte(reason_code);
+      else
+         reason_code = 0x00;
+      return true;
+     }
+
+   static bool       DecodePubcomp(MQTTBuffer &buf, ushort &packet_id,
+                                    uchar &reason_code)
+     {
+      if(!buf.ReadU16(packet_id)) return false;
       if(buf.Remaining() >= 1)
          buf.ReadByte(reason_code);
       else

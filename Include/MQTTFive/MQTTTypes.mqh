@@ -234,6 +234,47 @@ struct MQTTSubscribeParams
      }
   };
 
+#define MQTT_INFLIGHT_IDLE        0
+#define MQTT_INFLIGHT_PUBACK      1
+#define MQTT_INFLIGHT_PUBREC      2
+#define MQTT_INFLIGHT_PUBREL      3
+
+struct MQTTInflightMessage
+  {
+   ushort            packet_id;
+   uchar             qos;
+   uchar             state;
+   string            topic;
+   uchar             payload[];
+   uint              payload_len;
+   bool              retain;
+   datetime          sent_time;
+   uchar             pub_flags;
+
+   void              Init()
+     {
+      packet_id = 0; qos = 0; state = MQTT_INFLIGHT_IDLE;
+      topic = ""; payload_len = 0;
+      retain = false; sent_time = 0; pub_flags = 0;
+     }
+  };
+
+struct MQTTQos2Incoming
+  {
+   ushort            packet_id;
+   string            topic;
+   uchar             payload[];
+   uint              payload_len;
+   bool              retain;
+   bool              dup;
+
+   void              Init()
+     {
+      packet_id = 0; topic = "";
+      payload_len = 0; retain = false; dup = false;
+     }
+  };
+
 //+------------------------------------------------------------------+
 //| Connect Flags bit masks (MQTT 5.0 Section 3.1.2.3)               |
 //+------------------------------------------------------------------+
