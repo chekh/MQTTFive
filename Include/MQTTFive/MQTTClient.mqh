@@ -33,6 +33,8 @@ private:
    MQTTQos2Incoming   m_qos2_incoming[];
    ushort            m_send_quota;
    uint              m_retry_timeout;
+   string            m_alias_topics[];
+   ushort            m_alias_ids[];
 
    ushort            NextPacketId()
      {
@@ -158,6 +160,23 @@ private:
       ArrayRemove(m_qos2_incoming, idx, 1);
      }
 
+   void              RegisterAlias(ushort alias, string topic)
+     {
+      for(int i = 0; i < ArraySize(m_alias_ids); i++)
+        {
+         if(m_alias_ids[i] == alias)
+           {
+            m_alias_topics[i] = topic;
+            return;
+           }
+        }
+      int sz = ArraySize(m_alias_ids);
+      ArrayResize(m_alias_ids, sz + 1);
+      ArrayResize(m_alias_topics, sz + 1);
+      m_alias_ids[sz] = alias;
+      m_alias_topics[sz] = topic;
+     }
+
     bool              HandleConnack()
      {
       uchar first_byte;
@@ -208,9 +227,11 @@ private:
       m_state = MQTT_STATE_CONNECTED;
        m_ping_outstanding = false;
       m_send_quota = m_connack_info.receive_maximum;
-      ArrayResize(m_inflight, 0);
-      ArrayResize(m_qos2_incoming, 0);
-      return true;
+       ArrayResize(m_inflight, 0);
+       ArrayResize(m_qos2_incoming, 0);
+       ArrayResize(m_alias_topics, 0);
+       ArrayResize(m_alias_ids, 0);
+       return true;
      }
 
    bool              HandleIncomingPacket()
@@ -458,8 +479,8 @@ public:
          SetError(-1, "Not connected");
          return false;
         }
-       ushort pkt_id = (qos > 0) ? NextPacketId() : 0;
-       MQTTCodec::EncodePublishString(topic, payload, qos, retain, pkt_id, m_write_buf);
+        ushort pkt_id = (qos > 0) ? NextPacketId() : 0;
+        MQTTCodec::EncodePublishString(topic, payload, qos, retain, pkt_id, 0, m_write_buf);
       if(qos > 0)
         {
          if(m_send_quota == 0)
@@ -492,8 +513,8 @@ public:
          SetError(-1, "Not connected");
          return false;
         }
-       ushort pkt_id = (qos > 0) ? NextPacketId() : 0;
-       MQTTCodec::EncodePublish(topic, payload, payload_len, qos, retain, pkt_id, m_write_buf);
+        ushort pkt_id = (qos > 0) ? NextPacketId() : 0;
+        MQTTCodec::EncodePublish(topic, payload, payload_len, qos, retain, pkt_id, 0, m_write_buf);
       if(qos > 0)
         {
          if(m_send_quota == 0)
@@ -517,10 +538,55 @@ public:
          ArrayCopy(m_inflight[idx].payload, payload, 0, 0, (int)payload_len);
          m_send_quota--;
         }
-       return SendBuffer();
+        return SendBuffer();
+      }
+
+   bool              Publish(string topic, string payload, uchar qos,
+                              bool retain, ushort topic_alias)
+     {
+      if(m_state != MQTT_STATE_CONNECTED)
+        {
+         SetError(-1, "Not connected");
+         return false;
+        }
+      if(topic_alias > 0 && m_connack_info.has_topic_alias_maximum
+         && topic_alias > m_connack_info.topic_alias_maximum)
+        {
+         SetError(-1, "Topic alias exceeds server maximum");
+         return false;
+        }
+      if(topic_alias > 0)
+         RegisterAlias(topic_alias, topic);
+
+      ushort pkt_id = (qos > 0) ? NextPacketId() : 0;
+      MQTTCodec::EncodePublishString(topic, payload, qos, retain, pkt_id, topic_alias, m_write_buf);
+
+      if(qos > 0)
+        {
+         if(m_send_quota == 0)
+           {
+            SetError(-1, "Send quota exceeded");
+            return false;
+           }
+         int idx = AllocInflight();
+         m_inflight[idx].packet_id = pkt_id;
+         m_inflight[idx].qos = qos;
+         m_inflight[idx].state = (qos == 1) ? MQTT_INFLIGHT_PUBACK : MQTT_INFLIGHT_PUBREC;
+         m_inflight[idx].topic = topic;
+         m_inflight[idx].retain = retain;
+         m_inflight[idx].sent_time = TimeLocal();
+         m_inflight[idx].pub_flags = 0;
+         if(qos == 1) m_inflight[idx].pub_flags |= MQTT_PUB_FLAG_QOS1;
+         if(qos == 2) m_inflight[idx].pub_flags |= MQTT_PUB_FLAG_QOS2;
+         if(retain) m_inflight[idx].pub_flags |= MQTT_PUB_FLAG_RETAIN;
+         m_inflight[idx].payload_len = 0;
+         m_send_quota--;
+        }
+
+      return SendBuffer();
      }
 
-    bool              Subscribe(string topic, uchar qos = 0)
+     bool              Subscribe(string topic, uchar qos = 0)
       {
        if(m_state != MQTT_STATE_CONNECTED)
          {
@@ -606,17 +672,17 @@ public:
                continue;
             if(m_inflight[i].qos == 1 && m_inflight[i].state == MQTT_INFLIGHT_PUBACK)
               {
-               MQTTCodec::EncodePublish(m_inflight[i].topic,
-                  m_inflight[i].payload, m_inflight[i].payload_len,
-                  1, m_inflight[i].retain, m_inflight[i].packet_id, m_write_buf);
+                MQTTCodec::EncodePublish(m_inflight[i].topic,
+                   m_inflight[i].payload, m_inflight[i].payload_len,
+                   1, m_inflight[i].retain, m_inflight[i].packet_id, 0, m_write_buf);
                SendBuffer();
                m_inflight[i].sent_time = now_retry;
               }
             else if(m_inflight[i].qos == 2 && m_inflight[i].state == MQTT_INFLIGHT_PUBREC)
               {
-               MQTTCodec::EncodePublish(m_inflight[i].topic,
-                  m_inflight[i].payload, m_inflight[i].payload_len,
-                  2, m_inflight[i].retain, m_inflight[i].packet_id, m_write_buf);
+                MQTTCodec::EncodePublish(m_inflight[i].topic,
+                   m_inflight[i].payload, m_inflight[i].payload_len,
+                   2, m_inflight[i].retain, m_inflight[i].packet_id, 0, m_write_buf);
                SendBuffer();
                m_inflight[i].sent_time = now_retry;
               }
