@@ -17,3 +17,10 @@ Thumbs.db
 
 # OpenCode
 .opencode/
+
+# Internal tools
+.local/
+
+# Internal design docs (not for users)
+docs/2026-*
+docs/SPEC.md
