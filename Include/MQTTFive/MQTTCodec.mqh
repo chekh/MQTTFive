@@ -10,6 +10,126 @@
 
 class MQTTCodec
   {
+private:
+   static void       EncodePropertyByte(MQTTBuffer &buf, uchar prop_id, uchar value)
+     {
+      buf.WriteByte(prop_id);
+      buf.WriteByte(value);
+     }
+
+   static void       EncodePropertyU16(MQTTBuffer &buf, uchar prop_id, ushort value)
+     {
+      buf.WriteByte(prop_id);
+      buf.WriteU16(value);
+     }
+
+   static void       EncodePropertyU32(MQTTBuffer &buf, uchar prop_id, uint value)
+     {
+      buf.WriteByte(prop_id);
+      buf.WriteU32(value);
+     }
+
+   static void       EncodePropertyString(MQTTBuffer &buf, uchar prop_id, string value)
+     {
+      if(value == "") return;
+      buf.WriteByte(prop_id);
+      buf.WriteString(value);
+     }
+
+   static void       WriteConnectProperties(MQTTBuffer &buf, MQTTConnectParams &params)
+     {
+      MQTTBuffer props;
+      if(params.session_expiry_interval > 0)
+         EncodePropertyU32(props, MQTT_PROP_SESSION_EXPIRY_INTERVAL, params.session_expiry_interval);
+      if(params.receive_maximum < 65535)
+         EncodePropertyU16(props, MQTT_PROP_RECEIVE_MAXIMUM, params.receive_maximum);
+      if(params.maximum_packet_size > 0)
+         EncodePropertyU32(props, MQTT_PROP_MAXIMUM_PACKET_SIZE, params.maximum_packet_size);
+      if(params.topic_alias_maximum > 0)
+         EncodePropertyU16(props, MQTT_PROP_TOPIC_ALIAS_MAXIMUM, params.topic_alias_maximum);
+
+      uchar propsData[];
+      props.GetData(propsData);
+      buf.WriteVarInt((uint)ArraySize(propsData));
+      buf.WriteRawBytes(propsData, (uint)ArraySize(propsData));
+     }
+
+   static void       WriteWillProperties(MQTTBuffer &buf, MQTTConnectParams &params)
+     {
+      MQTTBuffer props;
+      if(params.will_props.will_delay_interval > 0)
+         EncodePropertyU32(props, MQTT_PROP_WILL_DELAY_INTERVAL, params.will_props.will_delay_interval);
+      if(params.will_props.payload_format_indicator > 0)
+         EncodePropertyByte(props, MQTT_PROP_PAYLOAD_FORMAT_INDICATOR, params.will_props.payload_format_indicator);
+      if(params.will_props.message_expiry_interval > 0)
+         EncodePropertyU32(props, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL, params.will_props.message_expiry_interval);
+      if(params.will_props.content_type != "")
+         EncodePropertyString(props, MQTT_PROP_CONTENT_TYPE, params.will_props.content_type);
+
+      uchar propsData[];
+      props.GetData(propsData);
+      buf.WriteVarInt((uint)ArraySize(propsData));
+      buf.WriteRawBytes(propsData, (uint)ArraySize(propsData));
+     }
+
+   static void       ParseProperties(MQTTBuffer &buf, MQTTConnackInfo &info)
+     {
+      bool ok;
+      uint props_len = buf.ReadVarInt(ok);
+      if(!ok || props_len == 0) return;
+      uint end_pos = buf.ReadPosition() + props_len;
+      while(buf.ReadPosition() < end_pos)
+        {
+         uchar prop_id;
+         if(!buf.ReadByte(prop_id)) break;
+         switch(prop_id)
+           {
+            case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
+               info.has_session_expiry = true;
+               { uint v; if(buf.ReadU32(v)) info.session_expiry_interval = v; }
+               break;
+            case MQTT_PROP_RECEIVE_MAXIMUM:
+               info.has_receive_maximum = true;
+               { ushort v; if(buf.ReadU16(v)) info.receive_maximum = v; }
+               break;
+            case MQTT_PROP_MAXIMUM_QOS:
+               info.has_maximum_qos = true;
+               { uchar v; if(buf.ReadByte(v)) info.maximum_qos = v; }
+               break;
+            case MQTT_PROP_RETAIN_AVAILABLE:
+               info.has_retain_available = true;
+               { uchar v; if(buf.ReadByte(v)) info.retain_available = (v != 0); }
+               break;
+            case MQTT_PROP_MAXIMUM_PACKET_SIZE:
+               info.has_maximum_packet_size = true;
+               { uint v; if(buf.ReadU32(v)) info.maximum_packet_size = v; }
+               break;
+            case MQTT_PROP_ASSIGNED_CLIENT_ID:
+               info.has_assigned_client_id = true;
+               buf.ReadString(info.assigned_client_id);
+               break;
+            case MQTT_PROP_TOPIC_ALIAS_MAXIMUM:
+               info.has_topic_alias_maximum = true;
+               { ushort v; if(buf.ReadU16(v)) info.topic_alias_maximum = v; }
+               break;
+            case MQTT_PROP_SERVER_KEEP_ALIVE:
+               info.has_server_keep_alive = true;
+               { ushort v; if(buf.ReadU16(v)) info.server_keep_alive = v; }
+               break;
+            case MQTT_PROP_REASON_STRING:
+               { string s; buf.ReadString(s); }
+               break;
+            case MQTT_PROP_USER_PROPERTY:
+               { string k, v; buf.ReadString(k); buf.ReadString(v); }
+               break;
+            default:
+               break;
+           }
+        }
+      if(buf.ReadPosition() < end_pos)
+         buf.SkipBytes(end_pos - buf.ReadPosition());
+     }
+
 public:
 
    static void       BuildPacket(uchar pkt_type, MQTTBuffer &body,
@@ -37,7 +157,7 @@ public:
       if(params.will_topic != "")
         {
          flags |= MQTT_FLAG_WILL;
-         flags |= (params.will_qos << 3);
+         flags |= (uchar)((params.will_qos & 0x03) << 3);
          if(params.will_retain) flags |= MQTT_FLAG_WILL_RETAIN;
         }
       if(params.username != "")
@@ -47,12 +167,13 @@ public:
         }
       buf.WriteByte(flags);
       buf.WriteU16(params.keep_alive);
-      buf.WriteByte(0x00);
+
+      WriteConnectProperties(buf, params);
 
       buf.WriteString(params.client_id);
       if(params.will_topic != "")
         {
-         buf.WriteByte(0x00);
+         WriteWillProperties(buf, params);
          buf.WriteString(params.will_topic);
          uchar wp[];
          int wpl = StringToCharArray(params.will_payload, wp, 0, WHOLE_ARRAY, CP_UTF8);
@@ -122,7 +243,7 @@ public:
       buf.WriteU16(packet_id);
       buf.WriteByte(0x00);
       buf.WriteString(params.topic_filter);
-      buf.WriteByte((uchar)(params.qos & 0x03));
+      buf.WriteByte(params.options.ToByte());
 
       BuildPacket(MQTT_PKT_SUBSCRIBE, buf, out);
      }
@@ -160,23 +281,36 @@ public:
       out.WriteByte(0x00);
      }
 
+   static void       EncodeDisconnectWithReason(uchar reason_code, uint session_expiry, MQTTBuffer &out)
+     {
+      MQTTBuffer buf;
+      buf.WriteByte(reason_code);
+
+      MQTTBuffer props;
+      if(session_expiry > 0)
+         EncodePropertyU32(props, MQTT_PROP_SESSION_EXPIRY_INTERVAL, session_expiry);
+      uchar propsData[];
+      props.GetData(propsData);
+      buf.WriteVarInt((uint)ArraySize(propsData));
+      buf.WriteRawBytes(propsData, (uint)ArraySize(propsData));
+
+      BuildPacket(MQTT_PKT_DISCONNECT, buf, out);
+     }
+
    static uchar      PacketType(uchar first_byte)
      {
       return first_byte & 0xF0;
      }
 
-   static bool       DecodeConnack(MQTTBuffer &buf, uchar &reason_code,
-                                    bool &session_present)
+   static bool       DecodeConnackFull(MQTTBuffer &buf, MQTTConnackInfo &info)
      {
+      info.Init();
       uchar ack_flags;
       if(!buf.ReadByte(ack_flags)) return false;
-      if(!buf.ReadByte(reason_code)) return false;
-      session_present = (ack_flags & 0x01) != 0;
+      if(!buf.ReadByte(info.reason_code)) return false;
+      info.session_present = (ack_flags & 0x01) != 0;
 
-      bool ok;
-      uint props_len = buf.ReadVarInt(ok);
-      if(!ok) return false;
-      buf.SkipBytes(props_len);
+      ParseProperties(buf, info);
       return true;
      }
 
@@ -230,6 +364,23 @@ public:
                                    uchar &reason_code)
      {
       if(!buf.ReadU16(packet_id)) return false;
+
+      if(buf.Remaining() >= 1)
+         buf.ReadByte(reason_code);
+      else
+         reason_code = 0x00;
+      return true;
+     }
+
+   static bool       DecodeUnsuback(MQTTBuffer &buf, ushort &packet_id,
+                                     uchar &reason_code)
+     {
+      if(!buf.ReadU16(packet_id)) return false;
+
+      bool ok;
+      uint props_len = buf.ReadVarInt(ok);
+      if(!ok) return false;
+      buf.SkipBytes(props_len);
 
       if(buf.Remaining() >= 1)
          buf.ReadByte(reason_code);
