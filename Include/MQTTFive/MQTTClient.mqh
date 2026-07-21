@@ -245,7 +245,7 @@ private:
       uchar first_byte;
       uint remaining_len;
       if(!ReadRawPacket(first_byte, remaining_len))
-         return true;
+         return false;
 
       m_last_in = TimeLocal();
 
