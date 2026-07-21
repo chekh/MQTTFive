@@ -75,9 +75,12 @@ private:
       uint total_read = 0;
       while(total_read < count)
         {
-         int n = m_transport.Receive(buffer, count - total_read);
+         uchar tmp[];
+         ArrayResize(tmp, count - total_read);
+         int n = m_transport.Receive(tmp, count - total_read);
          if(n <= 0)
             return false;
+         ArrayCopy(buffer, tmp, total_read, 0, n);
          total_read += n;
         }
       return true;
