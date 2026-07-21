@@ -206,6 +206,26 @@ struct MQTTConnectParams
   };
 
 //+------------------------------------------------------------------+
+//| PUBLISH properties (MQTT 5.0 Section 3.3.2)                       |
+//| Subset supported: Message Expiry Interval, Topic Alias,           |
+//| Payload Format Indicator.                                         |
+//| Future: content_type, response_topic, correlation_data, etc.      |
+//+------------------------------------------------------------------+
+struct MQTTPublishProperties
+  {
+   uint              message_expiry_interval;   // 0 = not set (seconds)
+   ushort            topic_alias;               // 0 = not set
+   uchar             payload_format_indicator;  // 0 = not set (1 = UTF-8)
+
+   void              Init()
+     {
+      message_expiry_interval = 0;
+      topic_alias = 0;
+      payload_format_indicator = 0;
+     }
+  };
+
+//+------------------------------------------------------------------+
 //| Incoming PUBLISH message                                          |
 //+------------------------------------------------------------------+
 struct MQTTPublishMessage

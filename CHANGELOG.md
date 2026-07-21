@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-07-21
+
+### Added
+
+- `MQTTPublishProperties` struct — supports Message Expiry Interval,
+  Topic Alias, Payload Format Indicator (MQTT 5.0 Section 3.3.2).
+- `Publish(topic, payload, qos, retain, MQTTPublishProperties &props)` —
+  new overload for publishing with properties.
+- `EncodePublishStringWithProps` in MQTTCodec — encodes PUBLISH packet
+  with full properties bag.
+- `CleanupState()` method in MQTTClient — resets inflight/QoS2/alias state
+  between sessions. Called from Disconnect (2 overloads) and ForceDisconnect;
+  NOT from Connect (to preserve state for session resume with clean_start=false).
+- `TestT16_PublishProperties.mq5` — 7 assertions for PUBLISH properties.
+
+### Fixed
+
+- `Receive()` buffer handling — use temporary array instead of array slice
+  (MQL5 doesn't support slices). Was broken in upstream since 1.0.0.
+- `ReadRawPacket()` returns false on read failure (was incorrectly `true`,
+  masking connection errors).
+
 ## [1.0.0] — 2026-05-27
 
 ### Added

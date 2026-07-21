@@ -259,6 +259,50 @@ public:
       BuildPacket(hdr, buf, out);
      }
 
+   //+------------------------------------------------------------------+
+   //| Encode PUBLISH (string payload) with full properties bag.         |
+   //| Same as EncodePublishString + Message Expiry / Payload Format.    |
+   //+------------------------------------------------------------------+
+   static void       EncodePublishStringWithProps(string topic, string payload,
+                                                  uchar qos, bool retain,
+                                                  ushort packet_id,
+                                                  MQTTPublishProperties &props,
+                                                  MQTTBuffer &out)
+     {
+      MQTTBuffer buf;
+      if(props.topic_alias > 0 && topic == "")
+         buf.WriteU16(0);
+      else
+         buf.WriteString(topic);
+      if(qos > 0)
+         buf.WriteU16(packet_id);
+
+      MQTTBuffer propBuf;
+      if(props.message_expiry_interval > 0)
+         EncodePropertyU32(propBuf, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL,
+                           props.message_expiry_interval);
+      if(props.topic_alias > 0)
+         EncodePropertyU16(propBuf, MQTT_PROP_TOPIC_ALIAS, props.topic_alias);
+      if(props.payload_format_indicator > 0)
+         EncodePropertyByte(propBuf, MQTT_PROP_PAYLOAD_FORMAT_INDICATOR,
+                            props.payload_format_indicator);
+      uchar propsData[];
+      propBuf.GetData(propsData);
+      buf.WriteVarInt((uint)ArraySize(propsData));
+      buf.WriteRawBytes(propsData, (uint)ArraySize(propsData));
+
+      uchar temp[];
+      int byte_len = StringToCharArray(payload, temp, 0, WHOLE_ARRAY, CP_UTF8);
+      if(byte_len > 0) byte_len--;
+      buf.WriteRawBytes(temp, (uint)byte_len);
+
+      uchar hdr = MQTT_PKT_PUBLISH;
+      if(qos == 1) hdr |= MQTT_PUB_FLAG_QOS1;
+      else if(qos == 2) hdr |= MQTT_PUB_FLAG_QOS2;
+      if(retain) hdr |= MQTT_PUB_FLAG_RETAIN;
+      BuildPacket(hdr, buf, out);
+     }
+
    static void       EncodeSubscribe(ushort packet_id, MQTTSubscribeParams &params,
                                       MQTTBuffer &out)
      {
