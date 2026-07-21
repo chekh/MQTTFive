@@ -180,6 +180,17 @@ private:
       m_alias_topics[sz] = topic;
      }
 
+   void              CleanupState()
+     {
+      ArrayResize(m_inflight, 0);
+      ArrayResize(m_qos2_incoming, 0);
+      ArrayResize(m_alias_topics, 0);
+      ArrayResize(m_alias_ids, 0);
+      m_send_quota = 65535;
+      m_ping_outstanding = false;
+      m_next_pkt_id = 0;
+     }
+
     bool              HandleConnack()
      {
       uchar first_byte;
@@ -459,6 +470,7 @@ public:
          }
        m_transport.Disconnect();
        m_state = MQTT_STATE_DISCONNECTED;
+       CleanupState();
        return true;
       }
 
@@ -471,6 +483,7 @@ public:
          }
        m_transport.Disconnect();
        m_state = MQTT_STATE_DISCONNECTED;
+       CleanupState();
        return true;
       }
 
@@ -478,6 +491,7 @@ public:
       {
        m_transport.Disconnect();
        m_state = MQTT_STATE_DISCONNECTED;
+       CleanupState();
       }
 
    bool              Publish(string topic, string payload, uchar qos = 0,
